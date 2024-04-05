@@ -58,7 +58,7 @@ num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, 4)  # Output score vector has 4 elements
 
 # Define loss function and optimizer
-criterion = nn.MSELoss()
+criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001)
 
 # Train the model

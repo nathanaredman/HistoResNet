@@ -1,0 +1,102 @@
+     1	# -*- coding: utf-8 -*-
+     2	"""
+     3	Created on Wed Apr  3 11:09:51 2024
+     4	
+     5	@author: nathan
+     6	"""
+     7	
+     8	###BRANCHTEST_TEST
+     9	
+    10	import torch
+    11	import torch.nn as nn
+    12	import torch.optim as optim
+    13	import torchvision
+    14	from torchvision import datasets, models, transforms
+    15	from torch.utils.data import DataLoader, Dataset
+    16	from PIL import Image
+    17	import os
+    18	
+    19	# Define dataset class
+    20	class CustomDataset(Dataset):
+    21	    def __init__(self, root_dir, transform=None):
+    22	        self.root_dir = root_dir
+    23	        self.transform = transform
+    24	        self.file_list = os.listdir(root_dir)
+    25	
+    26	    def __len__(self):
+    27	        return len(self.file_list)
+    28	
+    29	    def __getitem__(self, idx):
+    30	        img_name = os.path.join(self.root_dir, self.file_list[idx])
+    31	        image = Image.open(img_name)
+    32	        if self.transform:
+    33	            image = self.transform(image)
+    34	        score = [float(x) for x in os.path.splitext(self.file_list[idx])[0].split('_')[1:]]
+    35	        return image, torch.tensor(score)
+    36	
+    37	# Define transformations
+    38	data_transforms = {
+    39	    'train': transforms.Compose([
+    40	        transforms.Resize(256),
+    41	        transforms.CenterCrop(224),
+    42	        transforms.ToTensor(),
+    43	        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    44	    ]),
+    45	    'val': transforms.Compose([
+    46	        transforms.Resize(256),
+    47	        transforms.CenterCrop(224),
+    48	        transforms.ToTensor(),
+    49	        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    50	    ]),
+    51	}
+    52	
+    53	# Set directories
+    54	data_dir = 'data'
+    55	image_datasets = {x: CustomDataset(os.path.join(data_dir, x), transform=data_transforms[x]) for x in ['train', 'val']}
+    56	dataloaders = {x: DataLoader(image_datasets[x], batch_size=4, shuffle=True, num_workers=4) for x in ['train', 'val']}
+    57	
+    58	# Load pre-trained ResNet model
+    59	model = models.resnet18(pretrained=True)
+    60	num_ftrs = model.fc.in_features
+    61	model.fc = nn.Linear(num_ftrs, 4)  # Output score vector has 4 elements
+    62	
+    63	# Define loss function and optimizer
+    64	criterion = nn.MSELoss()
+    65	optimizer = optim.SGD(model.parameters(), lr=0.001)
+    66	
+    67	# Train the model
+    68	def train_model(model, criterion, optimizer, num_epochs=10):
+    69	    for epoch in range(num_epochs):
+    70	        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+    71	        print('-' * 10)
+    72	
+    73	        for phase in ['train', 'val']:
+    74	            if phase == 'train':
+    75	                model.train()
+    76	            else:
+    77	                model.eval()
+    78	
+    79	            running_loss = 0.0
+    80	
+    81	            for inputs, targets in dataloaders[phase]:
+    82	                inputs = inputs.cuda()
+    83	                targets = targets.cuda()
+    84	
+    85	                optimizer.zero_grad()
+    86	
+    87	                with torch.set_grad_enabled(phase == 'train'):
+    88	                    outputs = model(inputs)
+    89	                    loss = criterion(outputs, targets)
+    90	
+    91	                    if phase == 'train':
+    92	                        loss.backward()
+    93	                        optimizer.step()
+    94	
+    95	                running_loss += loss.item() * inputs.size(0)
+    96	
+    97	            epoch_loss = running_loss / len(image_datasets[phase])
+    98	            print('{} Loss: {:.4f}'.format(phase, epoch_loss))
+    99	
+   100	# Training the model
+   101	model.cuda()
+   102	train_model(model, criterion, optimizer, num_epochs=10)
