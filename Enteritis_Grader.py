@@ -4,6 +4,9 @@ Created on Wed Apr  3 11:09:51 2024
 
 @author: nathan
 """
+
+# Resnet architecture, cross entropy loss function
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
